@@ -1,0 +1,72 @@
+{
+  "projectType": "frontend",
+  "projectName": "psys",
+  "projectDescription": "A web application for visualizing Linux process network connections with interactive diagrams and detailed connection tables.",
+  "theme": "aspen",
+  "primaryColor": "#3b82f6",
+  "lightColor": "#60a5fa",
+  "darkColor": "#2563eb",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "installation", "quickstart"]
+          },
+          {
+            "group": "Core Features",
+            "pages": ["features/network-visualization", "features/process-monitoring", "features/docker-integration"]
+          },
+          {
+            "group": "Usage",
+            "pages": ["usage/understanding-listeners", "usage/analyzing-connections", "usage/managing-processes"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["config/deployment", "config/production-setup", "config/shell-aliases"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": ["api/connections", "api/kill-process"]
+          },
+          {
+            "group": "Types",
+            "pages": ["api/types"]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": ["dev/architecture", "dev/components", "dev/contributing"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Interactive network diagram visualization with React Flow",
+    "Real-time process and connection monitoring using Linux ss command",
+    "Docker container detection and labeling",
+    "Process management with SIGTERM capability",
+    "Automatic polling with 5-second refresh intervals",
+    "Detailed listener information with address descriptions"
+  ],
+  "publicApiSurface": [
+    "GET /api/connections - Retrieve all network listeners and established connections",
+    "POST /api/connections/kill - Terminate a process by PID",
+    "ConnectionsData - Main data structure with listeners and connections arrays",
+    "Listener type - Process listener information including PID, port, address, Docker status",
+    "Connection type - Established connection information with source and destination details",
+    "getConnectionsData() - Core function to gather system connection data"
+  ]
+}
