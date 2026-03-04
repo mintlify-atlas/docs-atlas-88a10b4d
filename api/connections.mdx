@@ -17,7 +17,7 @@ Retrieves comprehensive information about all listening ports and established ne
 No parameters required. This is a simple GET request.
 
 ```bash
-curl http://localhost:3002/api/connections
+curl http://localhost:3000/api/connections
 ```
 
 ## Response
@@ -111,7 +111,7 @@ Returns a JSON object containing two arrays: `listeners` and `connections`.
       "serviceLabel": "psys",
       "address": "0.0.0.0",
       "addressDescription": "Listening on all IPv4 interfaces",
-      "port": 3002,
+      "port": 3000,
       "processIconType": "psys",
       "cmd": "node /home/user/.next/server/app.js"
     },
