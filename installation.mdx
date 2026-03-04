@@ -1,0 +1,157 @@
+---
+title: Installation
+description: Install psys and get it running on your Linux system
+---
+
+## System Requirements
+
+Before installing psys, ensure your system meets these requirements:
+
+<Warning>
+  psys is **Linux-only** and requires the `ss` command and `/proc` filesystem to gather network connection data.
+</Warning>
+
+### Required
+
+- **Linux operating system** - psys uses Linux-specific commands (`ss`) and the `/proc` filesystem
+- **Node.js** - Version 22.0.0 or higher recommended
+- **npm** - Comes bundled with Node.js
+- **ss command** - Part of the `iproute2` package (usually pre-installed on modern Linux distributions)
+
+### Optional
+
+- **Docker** - If you want to see Docker container information for published ports
+
+<Note>
+  No sudo/root access is required to see processes owned by your user. To see all system processes, you may need elevated permissions (not recommended for daily use).
+</Note>
+
+## Dependencies
+
+psys is built with modern web technologies:
+
+### Runtime Dependencies
+
+```json
+{
+  "next": "^15.0.0",
+  "react": "^19.0.0",
+  "react-dom": "^19.0.0",
+  "reactflow": "^11.11.0",
+  "@radix-ui/react-slot": "^1.2.4",
+  "@radix-ui/react-tabs": "^1.1.13",
+  "lucide-react": "^0.576.0",
+  "tailwind-merge": "^3.5.0",
+  "class-variance-authority": "^0.7.1",
+  "clsx": "^2.1.1"
+}
+```
+
+### Development Dependencies
+
+```json
+{
+  "typescript": "^5.0.0",
+  "@types/node": "^22.0.0",
+  "@types/react": "^19.0.0",
+  "@types/react-dom": "^19.0.0",
+  "tailwindcss": "^3.4.0",
+  "postcss": "^8.4.0",
+  "eslint": "^9.0.0",
+  "eslint-config-next": "^15.0.0"
+}
+```
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone or download the repository">
+    Get the psys source code on your local machine.
+  </Step>
+
+  <Step title="Navigate to the project directory">
+    ```bash
+    cd psys
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required npm packages:
+
+    ```bash
+    npm install
+    ```
+
+    This will install Next.js, React, React Flow, and all other dependencies listed in `package.json`.
+  </Step>
+
+  <Step title="Build the production version">
+    Compile the application for production use:
+
+    ```bash
+    npm run build
+    ```
+
+    This creates an optimized production build in the `.next` directory.
+  </Step>
+</Steps>
+
+## Verify Installation
+
+Test that psys works correctly:
+
+<Steps>
+  <Step title="Start the development server">
+    ```bash
+    npm run dev
+    ```
+
+    The app will start on [http://localhost:3000](http://localhost:3000) with hot-reload enabled.
+  </Step>
+
+  <Step title="Open the web interface">
+    Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+  </Step>
+
+  <Step title="Check for data">
+    You should see:
+    - A **Diagram** tab showing a flow chart of your system's network connections
+    - A **Table** tab listing all listening ports with process information
+    - The page auto-refreshes every 5 seconds
+
+    <Note>
+      If you see an error about the `ss` command not being available, install the `iproute2` package for your Linux distribution.
+    </Note>
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### "ss: command not found"
+
+Install the `iproute2` package:
+
+<CodeGroup>
+```bash Ubuntu/Debian
+sudo apt-get install iproute2
+```
+
+```bash Fedora/RHEL
+sudo dnf install iproute
+```
+
+```bash Arch Linux
+sudo pacman -S iproute2
+```
+</CodeGroup>
+
+### No processes shown
+
+The `ss` command requires permissions to see process information:
+- You can see your own user's processes without special permissions
+- To see all processes, run the development server with `sudo npm run dev` (not recommended)
+- Check that `ss -tlnp` and `ss -tnp` work in your terminal
+
+### Port already in use
+
+If port 3000 is already taken, Next.js will automatically try the next available port and show you the correct URL in the terminal.

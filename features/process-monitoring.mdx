@@ -1,0 +1,270 @@
+---
+title: 'Process Monitoring'
+description: 'Real-time process and network connection monitoring using ss commands'
+---
+
+## Overview
+
+psys monitors network processes and connections in real-time using Linux's `ss` command-line utility. Data is automatically refreshed every 5 seconds to provide live updates.
+
+## Data Collection
+
+psys uses two `ss` commands to gather network information:
+
+### Listening Ports (ss -tlnp)
+
+```typescript
+let ssListen: string;
+try {
+  ssListen = execSync("ss -tlnp 2>/dev/null", { encoding: "utf8" });
+} catch {
+  return { listeners: [], connections: [] };
+}
+```
+
+<Info>
+The `-tlnp` flags stand for: **t**cp, **l**istening sockets, **n**umeric addresses (no DNS lookup), **p**rocess information.
+</Info>
+
+### Established Connections (ss -tnp)
+
+```typescript
+let ssEstab: string;
+try {
+  ssEstab = execSync("ss -tnp 2>/dev/null", { encoding: "utf8" });
+} catch {
+  return { listeners, connections };
+}
+```
+
+<Note>
+The `-tnp` flags capture: **t**cp, **n**umeric addresses, **p**rocess information for established connections.
+</Note>
+
+## Parsing ss Output
+
+psys uses regular expressions to parse the ss command output:
+
+### Listener Regex
+
+```typescript
+const SS_LISTEN_RE = /LISTEN\s+\d+\s+\d+\s+(\S+)\s+\S+(?:\s+users:\(\("([^"]+)",pid=(\d+),fd=\d+\)\))?/;
+```
+
+This captures:
+- Local address and port
+- Process name
+- PID (process ID)
+
+### Established Connection Regex
+
+```typescript
+const SS_ESTAB_RE = /ESTAB\s+\d+\s+\d+\s+(\S+)\s+(\S+)\s+users:\(\("([^"]+)",pid=(\d+),fd=\d+\)\)/;
+```
+
+This captures:
+- Local address and port
+- Remote (peer) address and port
+- Process name
+- PID
+
+## Data Structure
+
+The collected data is structured into two main types:
+
+### Listener Type
+
+```typescript
+export type Listener = {
+  pid: number;
+  processName: string;
+  serviceLabel?: string;        // Display name (e.g., "Redis" or container name)
+  containerName?: string;        // Set when Docker container
+  processIconType?: string;      // Icon type: node, redis, mongo, etc.
+  address: string;
+  addressDescription?: string;   // Human-readable address description
+  port: number;
+  cmd?: string;                  // Full command line
+};
+```
+
+### Connection Type
+
+```typescript
+export type Connection = {
+  fromPid: number;
+  fromProcessName: string;
+  fromAddress: string;
+  fromPort: number;
+  toAddress: string;
+  toPort: number;
+  toLabel?: string;  // Friendly name for the target
+};
+```
+
+## Process Information Retrieval
+
+psys reads additional process information from the `/proc` filesystem:
+
+### Process Name
+
+```typescript
+function getProcessName(pid: number): string {
+  try {
+    const commPath = join("/proc", String(pid), "comm");
+    if (existsSync(commPath)) {
+      return readFileSync(commPath, "utf8").trim();
+    }
+  } catch {
+    // ignore
+  }
+  return `pid:${pid}`;
+}
+```
+
+### Command Line
+
+```typescript
+function getProcessCmd(pid: number): string | undefined {
+  try {
+    const path = join("/proc", String(pid), "cmdline");
+    if (existsSync(path)) {
+      const raw = readFileSync(path, "utf8");
+      return raw.replace(/\0/g, " ").trim().slice(0, 80);
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+```
+
+<Warning>
+Reading from `/proc` requires appropriate permissions. psys gracefully handles permission errors.
+</Warning>
+
+## Process Icon Detection
+
+psys automatically detects the type of process and assigns appropriate icons:
+
+```typescript
+function getProcessIconType(
+  processName: string,
+  containerName: string | undefined,
+  port: number
+): string | undefined {
+  const name = processName.toLowerCase();
+  const container = (containerName ?? "").toLowerCase();
+  
+  if (name.includes("node") || name === "mainthread") return "node";
+  if (name.includes("next")) return "next";
+  if (name.includes("redis")) return "redis";
+  if (name.includes("mongo")) return "mongo";
+  if (name.includes("postgres") || name.includes("psql")) return "postgres";
+  if (name.includes("mysql") || name.includes("mariadb")) return "mysql";
+  if (name.includes("apache") || name.includes("httpd")) return "apache";
+  if (name.includes("ssh") || name.includes("sshd")) return "ssh";
+  
+  // Check container name
+  if (container.includes("redis")) return "redis";
+  if (container.includes("mongo")) return "mongo";
+  if (container.includes("postgres")) return "postgres";
+  if (container.includes("mysql")) return "mysql";
+  
+  // Fall back to port-based detection
+  return PORT_ICON_TYPE[port] ?? "generic";
+}
+```
+
+### Supported Icon Types
+
+<CardGroup cols={3}>
+  <Card title="Node.js" icon="node-js">
+    node, mainthread processes
+  </Card>
+  <Card title="Next.js" icon="n">
+    next processes
+  </Card>
+  <Card title="Redis" icon="database">
+    redis processes or port 6379
+  </Card>
+  <Card title="MongoDB" icon="database">
+    mongo processes or port 27017
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    postgres, psql processes or port 5432
+  </Card>
+  <Card title="MySQL" icon="database">
+    mysql, mariadb processes or port 3306
+  </Card>
+  <Card title="Apache" icon="server">
+    apache, httpd processes or port 80
+  </Card>
+  <Card title="SSH" icon="terminal">
+    ssh, sshd processes or port 22
+  </Card>
+  <Card title="Generic" icon="box">
+    All other processes
+  </Card>
+</CardGroup>
+
+## Known Service Detection
+
+When the process name is unknown (`"?"`), psys falls back to port-based service detection:
+
+```typescript
+function knownListenerService(port: number): string | undefined {
+  const known: Record<number, string> = {
+    22: "SSH",
+    53: "DNS (systemd-resolved)",
+    80: "Apache / HTTP",
+    443: "HTTPS",
+    3000: "Node/Express",
+    3001: "Node/Express",
+    3002: "psys (this app)",
+    631: "CUPS (printing)",
+    6379: "Redis",
+    27017: "MongoDB",
+    5432: "PostgreSQL",
+    3306: "MySQL",
+    5672: "RabbitMQ",
+    9200: "Elasticsearch",
+  };
+  return known[port];
+}
+```
+
+## Address Interpretation
+
+psys provides human-readable descriptions for listening addresses:
+
+```typescript
+function getAddressDescription(addr: string): string {
+  const a = addr.trim();
+  if (a === "0.0.0.0") return "Listening on all IPv4 interfaces";
+  if (a === "127.0.0.1") return "Localhost only (IPv4)";
+  if (a === "[::1]" || a === "::1" || a === "::") return "Localhost or all IPv6";
+  if (a === "127.0.0.53") return "systemd-resolved (local DNS)";
+  if (a.startsWith("127.") || a.startsWith("10.") || 
+      a.startsWith("192.168.") || a.startsWith("172.")) 
+    return "Local network (IPv4)";
+  if (a.startsWith("[") && a.includes("]")) return "IPv6 address";
+  return "Other interface";
+}
+```
+
+## Auto-Refresh Polling
+
+The dashboard automatically refreshes data every 5 seconds:
+
+```typescript
+useEffect(() => {
+  fetchData();
+  const t = setInterval(fetchData, 5000);
+  return () => clearInterval(t);
+}, [fetchData]);
+```
+
+<Tip>
+You can manually trigger a refresh at any time using the Refresh button in the header.
+</Tip>

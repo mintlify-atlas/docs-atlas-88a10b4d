@@ -1,0 +1,209 @@
+---
+title: 'TypeScript Types'
+description: 'Type definitions for connections API data structures'
+---
+
+## Overview
+
+The connections API uses three main TypeScript types to represent network data: `Listener`, `Connection`, and `ConnectionsData`. These types are defined in `lib/connections.ts` and are used throughout the API responses.
+
+## Listener
+
+Represents a process that is listening on a network port.
+
+```typescript
+export type Listener = {
+  pid: number;
+  processName: string;
+  /** Label: "6379 (típico: Redis)" or container name when Docker */
+  serviceLabel?: string;
+  /** Set when this port is published by a Docker container (show Docker icon). */
+  containerName?: string;
+  /** Icon type for Process column: node, next, redis, mongo, postgres, mysql, apache, ssh, generic */
+  processIconType?: string;
+  address: string;
+  addressDescription?: string;
+  port: number;
+  cmd?: string;
+};
+```
+
+### Fields
+
+<ResponseField name="pid" type="number" required>
+  Process ID of the listening process. May be `0` if the process information is not available.
+</ResponseField>
+
+<ResponseField name="processName" type="string" required>
+  Name of the process (e.g., "node", "redis-server", "postgres"). Extracted from `/proc/{pid}/comm`. Will be `"?"` if the process name cannot be determined.
+</ResponseField>
+
+<ResponseField name="serviceLabel" type="string | undefined">
+  Human-readable service label for display purposes:
+  - Shows the container name for Docker-published ports
+  - Shows "psys" for the psys application itself
+  - Shows "6379 (typical: Redis)" format for recognized services when process name is "?"
+  - Shows "{port} (unknown)" for unrecognized services
+  - `undefined` when the process name is known and not a Docker container
+</ResponseField>
+
+<ResponseField name="containerName" type="string | undefined">
+  Docker container name if this port is published by a Docker container. Used to display Docker icon in the UI.
+</ResponseField>
+
+<ResponseField name="processIconType" type="string | undefined">
+  Suggested icon type for UI display. Possible values:
+  - `"node"` - Node.js processes
+  - `"next"` - Next.js applications
+  - `"redis"` - Redis server
+  - `"mongo"` - MongoDB
+  - `"postgres"` - PostgreSQL
+  - `"mysql"` - MySQL/MariaDB
+  - `"apache"` - Apache HTTP Server
+  - `"ssh"` - SSH server
+  - `"psys"` - The psys application itself
+  - `"generic"` - Generic/unknown service
+</ResponseField>
+
+<ResponseField name="address" type="string" required>
+  IP address the service is listening on. Common values:
+  - `"0.0.0.0"` - All IPv4 interfaces
+  - `"127.0.0.1"` - Localhost only (IPv4)
+  - `"::"` - All IPv6 interfaces
+  - `"::1"` - Localhost only (IPv6)
+  - Specific IP addresses for individual interfaces
+</ResponseField>
+
+<ResponseField name="addressDescription" type="string | undefined">
+  Human-readable description of what the address means:
+  - `"Listening on all IPv4 interfaces"`
+  - `"Localhost only (IPv4)"`
+  - `"Localhost or all IPv6"`
+  - `"systemd-resolved (local DNS)"`
+  - `"Local network (IPv4)"`
+  - `"IPv6 address"`
+  - `"Other interface"`
+</ResponseField>
+
+<ResponseField name="port" type="number" required>
+  Port number the service is listening on (0-65535).
+</ResponseField>
+
+<ResponseField name="cmd" type="string | undefined">
+  Full command line of the process, extracted from `/proc/{pid}/cmdline`. Truncated to 80 characters. Null bytes are replaced with spaces.
+</ResponseField>
+
+## Connection
+
+Represents an established TCP connection between processes.
+
+```typescript
+export type Connection = {
+  fromPid: number;
+  fromProcessName: string;
+  fromAddress: string;
+  fromPort: number;
+  toAddress: string;
+  toPort: number;
+  toLabel?: string;
+};
+```
+
+### Fields
+
+<ResponseField name="fromPid" type="number" required>
+  Process ID that initiated the connection.
+</ResponseField>
+
+<ResponseField name="fromProcessName" type="string" required>
+  Name of the process that initiated the connection. Extracted from `/proc/{pid}/comm`.
+</ResponseField>
+
+<ResponseField name="fromAddress" type="string" required>
+  Source IP address of the connection. Normalized for consistent display (e.g., loopback addresses standardized).
+</ResponseField>
+
+<ResponseField name="fromPort" type="number" required>
+  Source port number (ephemeral port typically assigned by the OS).
+</ResponseField>
+
+<ResponseField name="toAddress" type="string" required>
+  Destination IP address the connection is going to.
+</ResponseField>
+
+<ResponseField name="toPort" type="number" required>
+  Destination port number (the service port the connection is targeting).
+</ResponseField>
+
+<ResponseField name="toLabel" type="string | undefined">
+  Optional label identifying the destination service:
+  - Docker container name if the destination is a Docker-published port
+  - Known service name for common ports ("MongoDB", "Redis", "PostgreSQL", "MySQL", "Elasticsearch", "RabbitMQ")
+  - Process name if the destination is another local process
+  - `undefined` if the destination cannot be identified
+</ResponseField>
+
+## ConnectionsData
+
+The top-level response type returned by the `/api/connections` endpoint.
+
+```typescript
+export type ConnectionsData = {
+  listeners: Listener[];
+  connections: Connection[];
+};
+```
+
+### Fields
+
+<ResponseField name="listeners" type="Listener[]" required>
+  Array of all listening ports on the system. Gathered from `ss -tlnp` command output.
+</ResponseField>
+
+<ResponseField name="connections" type="Connection[]" required>
+  Array of all established TCP connections. Gathered from `ss -tnp` command output.
+</ResponseField>
+
+## Usage Example
+
+```typescript
+import type { ConnectionsData, Listener, Connection } from '@/lib/connections';
+
+// Fetch connections data
+const response = await fetch('/api/connections');
+const data: ConnectionsData = await response.json();
+
+// Find all Redis listeners
+const redisListeners: Listener[] = data.listeners.filter(
+  listener => listener.processIconType === 'redis'
+);
+
+// Find all connections to port 6379 (Redis)
+const redisConnections: Connection[] = data.connections.filter(
+  conn => conn.toPort === 6379
+);
+
+// Get all Docker container listeners
+const dockerListeners: Listener[] = data.listeners.filter(
+  listener => listener.containerName !== undefined
+);
+```
+
+## Type Guards
+
+```typescript
+// Check if a listener is from a Docker container
+function isDockerListener(listener: Listener): boolean {
+  return listener.containerName !== undefined;
+}
+
+// Check if a listener is the psys app itself
+function isPsysListener(listener: Listener): boolean {
+  return listener.processIconType === 'psys';
+}
+
+// Check if a connection has an identified destination
+function hasKnownDestination(connection: Connection): boolean {
+  return connection.toLabel !== undefined;
+}
+```

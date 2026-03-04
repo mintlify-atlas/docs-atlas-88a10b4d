@@ -1,0 +1,133 @@
+---
+title: Understanding Listeners
+description: Learn how psys detects and displays processes that expose network ports
+---
+
+## What Are Listeners?
+
+Listeners are processes on your system that expose network ports, accepting incoming connections. When you run a web server, database, or any service that listens on a port, psys detects and displays it in the listeners table.
+
+psys uses the Linux `ss` (socket statistics) command to discover all listening TCP sockets on your system:
+
+```bash
+ss -tlnp
+```
+
+## Listeners Table Columns
+
+The listeners table displays comprehensive information about each listening process:
+
+### Process
+
+Shows the process name with an appropriate icon. psys automatically detects common services and displays recognizable icons for:
+
+- **Node.js** processes
+- **Next.js** applications
+- **Redis** servers
+- **MongoDB** databases
+- **PostgreSQL** databases
+- **MySQL/MariaDB** databases
+- **Apache/httpd** web servers
+- **SSH** daemons
+
+If the process is the psys app itself, it shows a special psys icon.
+
+### Docker Status
+
+Indicates whether this port is published by a Docker container. When Docker publishes a container port to the host, psys shows the Docker icon and uses the container name as the service label.
+
+### Port
+
+The TCP port number the process is listening on.
+
+### Address
+
+The IP address the service is bound to. Common addresses include:
+
+- `0.0.0.0` - Listening on all IPv4 interfaces
+- `127.0.0.1` - Localhost only (IPv4)
+- `::`, `::1`, `[::1]` - IPv6 addresses
+- Private network addresses (10.x, 192.168.x, 172.x)
+
+### Address Description
+
+psys provides human-readable explanations of what each address means:
+
+<CodeGroup>
+
+```typescript lib/connections.ts
+function getAddressDescription(addr: string): string {
+  const a = addr.trim();
+  if (a === "0.0.0.0") return "Listening on all IPv4 interfaces";
+  if (a === "127.0.0.1") return "Localhost only (IPv4)";
+  if (a === "[::1]" || a === "::1" || a === "::") return "Localhost or all IPv6";
+  if (a === "127.0.0.53") return "systemd-resolved (local DNS)";
+  if (a === "127.0.0.54") return "Local DNS (alternative)";
+  if (a.startsWith("127.") || a.startsWith("10.") || a.startsWith("192.168.") || a.startsWith("172.")) 
+    return "Local network (IPv4)";
+  if (a.startsWith("[") && a.includes("]")) return "IPv6 address";
+  return "Other interface";
+}
+```
+
+</CodeGroup>
+
+<Info>
+The address `127.0.0.53` is typically used by **systemd-resolved**, the system DNS resolver on modern Linux distributions.
+</Info>
+
+### Connections
+
+Displays badge indicators for established connections from this listener to other services. Shows up to 5 connection targets with a "+N" badge if there are more.
+
+### PID
+
+The Process ID of the listening process. This is used for process management operations.
+
+## Service Label Detection
+
+psys automatically recognizes common services by their port numbers and provides helpful labels:
+
+<CodeGroup>
+
+```typescript lib/connections.ts
+function knownListenerService(port: number): string | undefined {
+  const known: Record<number, string> = {
+    22: "SSH",
+    53: "DNS (systemd-resolved)",
+    80: "Apache / HTTP",
+    443: "HTTPS",
+    3000: "Node/Express",
+    3001: "Node/Express",
+    3002: "psys (this app)",
+    631: "CUPS (printing)",
+    6379: "Redis",
+    27017: "MongoDB",
+    5432: "PostgreSQL",
+    3306: "MySQL",
+    5672: "RabbitMQ",
+    9200: "Elasticsearch",
+  };
+  return known[port];
+}
+```
+
+</CodeGroup>
+
+When a process cannot be identified (shown as "?"), psys uses the known port mapping to suggest what service might be running. For example, port 6379 will be labeled as "6379 (typical: Redis)".
+
+<Tip>
+psys prioritizes showing **Docker container names** when a port is published by Docker, then falls back to the known service detection.
+</Tip>
+
+## How Detection Works
+
+The detection logic follows this priority:
+
+1. **psys itself** - Identifies if the listener is the psys app
+2. **Docker containers** - Uses `docker ps` to match ports to container names
+3. **Process name** - Reads from `/proc/{pid}/comm`
+4. **Known ports** - Falls back to well-known port mappings
+5. **Unknown** - Shows "port (unknown)" if nothing matches
+
+This multi-layered approach ensures you always have meaningful information about what's listening on your system.

@@ -1,0 +1,198 @@
+---
+title: Introduction to psys
+description: Visualize Linux process network connections with interactive diagrams and detailed tables
+---
+
+<div className="relative overflow-hidden bg-gradient-to-br from-[#1a1d27] to-[#0f1117] py-20 dark:from-[#1a1d27] dark:to-[#0f1117]">
+  <div className="max-w-6xl mx-auto px-6 lg:px-8">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+          Monitor Network Connections Visually
+        </h1>
+        <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mb-8">
+          psys helps you understand which processes expose ports and how they connect to other services through interactive diagrams and detailed connection tables.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-[#3b82f6] text-white font-semibold hover:bg-[#2563eb] transition-colors"
+          >
+            Get Started
+          </a>
+          <a 
+            href="/features/network-visualization" 
+            className="inline-flex items-center px-6 py-3 rounded-lg border border-white/30 bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors"
+          >
+            Explore Features
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5 hidden lg:block">
+        <div className="rounded-2xl border border-white/10 bg-[#1a1d27]/50 p-6 backdrop-blur">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-[#3b82f6]"></div>
+              <div className="flex-1 h-8 rounded bg-white/5"></div>
+            </div>
+            <div className="flex items-center gap-3 ml-6">
+              <div className="w-2 h-2 rounded-full bg-[#60a5fa]"></div>
+              <div className="flex-1 h-6 rounded bg-white/5"></div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-[#3b82f6]"></div>
+              <div className="flex-1 h-8 rounded bg-white/5"></div>
+            </div>
+            <div className="flex items-center gap-3 ml-6">
+              <div className="w-2 h-2 rounded-full bg-[#60a5fa]"></div>
+              <div className="flex-1 h-6 rounded bg-white/5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+
+## Quick start
+
+<Steps>
+  <Step title="Install dependencies">
+    Clone the repository and install dependencies with npm:
+
+    ```bash
+    git clone https://github.com/alexcgomez/psys.git
+    cd psys
+    npm install
+    ```
+  </Step>
+
+  <Step title="Run the development server">
+    Start the Next.js development server:
+
+    ```bash
+    npm run dev
+    ```
+
+    Open [http://localhost:3000](http://localhost:3000) in your browser. The page will automatically refresh every 5 seconds to show current connections.
+  </Step>
+
+  <Step title="View your connections">
+    psys displays two views:
+    
+    - **Diagram**: Interactive network graph showing listeners (left) and their outgoing connections (right)
+    - **Table**: Detailed table with process names, ports, addresses, and connection information
+    
+    <Note>
+    psys uses the `ss` command to gather connection data. You'll see processes owned by your user. For system-wide visibility, run with elevated permissions (not recommended for daily use).
+    </Note>
+  </Step>
+</Steps>
+
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Interactive Diagrams" icon="diagram-project" href="/features/network-visualization">
+    Visualize network connections with React Flow diagrams showing listeners and their targets
+  </Card>
+  <Card title="Process Monitoring" icon="microchip" href="/features/process-monitoring">
+    Track which processes expose ports with real-time updates every 5 seconds
+  </Card>
+  <Card title="Docker Integration" icon="docker" href="/features/docker-integration">
+    Automatically detect and label Docker container port mappings
+  </Card>
+  <Card title="Connection Analysis" icon="network-wired" href="/usage/analyzing-connections">
+    See established connections between local processes and remote services
+  </Card>
+</CardGroup>
+
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+
+## What you can do with psys
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div className="rounded-2xl border border-gray-200 dark:border-[#27272a] bg-gray-50 dark:bg-[#1a1d27] p-6">
+    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+      Debug port conflicts
+    </h3>
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      Quickly identify which process is using a specific port by scanning the listeners table or filtering the diagram view.
+    </p>
+  </div>
+
+  <div className="rounded-2xl border border-gray-200 dark:border-[#27272a] bg-gray-50 dark:bg-[#1a1d27] p-6">
+    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+      Map service dependencies
+    </h3>
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      Understand how your local services connect to databases, APIs, and other backend systems.
+    </p>
+  </div>
+
+  <div className="rounded-2xl border border-gray-200 dark:border-[#27272a] bg-gray-50 dark:bg-[#1a1d27] p-6">
+    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+      Monitor Docker containers
+    </h3>
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      See which Docker containers expose ports to the host and track their network activity.
+    </p>
+  </div>
+
+  <div className="rounded-2xl border border-gray-200 dark:border-[#27272a] bg-gray-50 dark:bg-[#1a1d27] p-6">
+    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+      Manage running processes
+    </h3>
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      Terminate processes directly from the table view with a single click using SIGTERM signals.
+    </p>
+  </div>
+</div>
+
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+
+## Platform requirements
+
+<Warning>
+psys is designed for **Linux systems only**. It relies on the `ss` command and `/proc` filesystem to gather process and connection data.
+</Warning>
+
+**Required:**
+- Linux operating system
+- `ss` command (from `iproute2` package)
+- Node.js 22+ and npm
+
+**Optional:**
+- Docker (for container detection and labeling)
+
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+
+## Ready to get started?
+
+<div className="rounded-2xl border border-[#3b82f6]/30 bg-gradient-to-br from-[#3b82f6]/5 to-[#2563eb]/5 p-8 text-center">
+  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+    Start monitoring your connections
+  </h2>
+  <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
+    Follow the quickstart guide to install psys and view your first network diagram in minutes.
+  </p>
+  <a 
+    href="/quickstart" 
+    className="inline-flex items-center px-6 py-3 rounded-lg bg-[#3b82f6] text-white font-semibold hover:bg-[#2563eb] transition-colors"
+  >
+    View Quickstart Guide
+  </a>
+</div>
+
+</div>

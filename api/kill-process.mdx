@@ -1,0 +1,155 @@
+---
+title: 'Kill Process'
+api: 'POST /api/connections/kill'
+description: 'Terminate a process by sending SIGTERM signal'
+---
+
+## Endpoint
+
+```
+POST /api/connections/kill
+```
+
+Sends a SIGTERM signal to terminate a process by its PID. This endpoint provides a safe way to stop processes from the psys interface.
+
+## Request
+
+<ParamField body="pid" type="number" required>
+  The process ID (PID) of the process to terminate. Must be a positive integer.
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:3002/api/connections/kill \
+  -H "Content-Type: application/json" \
+  -d '{"pid": 1234}'
+```
+
+```javascript
+fetch('/api/connections/kill', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ pid: 1234 })
+})
+```
+
+## Response
+
+### Success Response (200)
+
+Returned when the process is successfully terminated.
+
+<ResponseField name="ok" type="boolean" required>
+  Always `true` on success
+</ResponseField>
+
+```json
+{
+  "ok": true
+}
+```
+
+## Error Responses
+
+<ResponseField name="error" type="string">
+  Error message describing what went wrong
+</ResponseField>
+
+### 400 Bad Request
+
+Returned when the PID is invalid (not a number, negative, or zero).
+
+```json
+{
+  "error": "Invalid pid"
+}
+```
+
+**Causes:**
+- PID is not a number
+- PID is less than or equal to 0
+- PID is not an integer
+
+### 403 Forbidden
+
+Returned when the process cannot be killed due to insufficient permissions (EPERM error).
+
+```json
+{
+  "error": "Permission denied"
+}
+```
+
+**Causes:**
+- Process is owned by another user
+- Process requires elevated privileges to terminate
+- System security policies prevent the operation
+
+### 404 Not Found
+
+Returned when the specified process does not exist (ESRCH error).
+
+```json
+{
+  "error": "Process not found"
+}
+```
+
+**Causes:**
+- Process with the given PID does not exist
+- Process has already terminated
+
+### 500 Internal Server Error
+
+Returned for any other unexpected error during process termination.
+
+```json
+{
+  "error": "Failed to kill process"
+}
+```
+
+## Implementation Details
+
+- Uses Node.js `process.kill(pid, 'SIGTERM')` to send the termination signal
+- SIGTERM allows the process to perform cleanup before exiting
+- The endpoint is configured with `dynamic = "force-dynamic"` and `runtime = "nodejs"`
+- PID validation accepts both numeric values and string representations that can be parsed as integers
+
+<Warning>
+  **Important:** This endpoint sends SIGTERM, which allows graceful shutdown. The process may take time to terminate or may ignore the signal. Use system tools like `kill -9` for forced termination if needed.
+</Warning>
+
+## Security Considerations
+
+- Only processes that the server has permission to terminate can be killed
+- System processes and processes owned by other users will return a 403 error
+- Always validate the PID before calling this endpoint to avoid unintended termination
+
+## Example Usage
+
+```typescript
+// Kill a process from the connections list
+const killProcess = async (pid: number) => {
+  try {
+    const response = await fetch('/api/connections/kill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pid })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      console.error(`Failed to kill process: ${error.error}`);
+      return false;
+    }
+    
+    const data = await response.json();
+    return data.ok;
+  } catch (error) {
+    console.error('Network error:', error);
+    return false;
+  }
+};
+```

@@ -1,0 +1,337 @@
+---
+title: Components
+description: Component architecture and API reference
+---
+
+psys uses a component-based architecture with React 19 and shadcn/ui. The main components handle data fetching, visualization, and user interactions.
+
+## Main Components
+
+### ConnectionsDashboard
+
+The primary component that orchestrates the entire UI. Located at `components/connections-dashboard.tsx:142`.
+
+**Features:**
+- Fetches connection data from `/api/connections` every 5 seconds
+- Manages React Flow nodes and edges state
+- Provides tab navigation between diagram and table views
+- Handles process termination via kill button
+
+**Key State:**
+
+```typescript
+const [data, setData] = useState<ConnectionsData | null>(null);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
+const [killingPid, setKillingPid] = useState<number | null>(null);
+const [nodes, setNodes, onNodesChange] = useNodesState([]);
+const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+```
+
+**Props:**
+
+No props - this is a top-level component rendered directly by `app/page.tsx`.
+
+### React Flow Nodes
+
+psys defines two custom node types for the diagram view:
+
+#### ListenerNode
+
+Represents a process listening on a port. Defined at `components/connections-dashboard.tsx:44`.
+
+**Props:**
+
+```typescript
+type ListenerNodeData = {
+  label: string;                 // Process or service name
+  port: number;                  // Listening port
+  pid?: number;                  // Process ID
+  processIconType?: string;      // Icon type (node, redis, etc.)
+  isDocker?: boolean;            // Whether it's a Docker container
+};
+```
+
+**Rendering:**
+- Border with primary color accent
+- Process icon + optional Docker icon
+- Service label with optional "(typical: X)" suffix
+- Port number below label
+- Source handle on the right for connections
+
+**Example:**
+
+```tsx
+<ListenerNode
+  data={{
+    label: "redis-server",
+    port: 6379,
+    pid: 1234,
+    processIconType: "redis",
+    isDocker: true
+  }}
+/>
+```
+
+#### TargetNode
+
+Represents a connection target (service being connected to). Defined at `components/connections-dashboard.tsx:66`.
+
+**Props:**
+
+```typescript
+type TargetNodeData = {
+  label: string;     // Service name or address:port
+  address: string;   // IP address
+  port: number;      // Port number
+};
+```
+
+**Rendering:**
+- Muted border and background
+- Service label (e.g., "MongoDB")
+- Address:port below label
+- Target handle on the left for incoming connections
+
+## Icon Components
+
+### ProcessIcon
+
+Dynamic icon component that displays the appropriate logo based on process type. Located at `components/process-icon.tsx:30`.
+
+**Props:**
+
+```typescript
+type ProcessIconProps = {
+  type: ProcessIconType | string | undefined;
+  size?: number;      // Default: 20
+  className?: string;
+};
+
+type ProcessIconType =
+  | "psys" | "node" | "next" | "redis" | "mongo"
+  | "postgres" | "mysql" | "apache" | "ssh" | "generic";
+```
+
+**Icon Mapping:**
+
+| Type | Icon | Source |
+|------|------|--------|
+| `psys` | psys logo | `components/psys-icon.tsx` |
+| `node` | Node.js logo | `components/ui/svgs/nodejs.tsx` |
+| `next` | Next.js icon | `components/ui/svgs/nextjsIconDark.tsx` |
+| `redis` | Redis logo | `components/ui/svgs/redis.tsx` |
+| `mongo` | MongoDB icon | `components/ui/svgs/mongodbIconLight.tsx` |
+| `postgres` | PostgreSQL logo | `components/ui/svgs/postgresql.tsx` |
+| `mysql` | MySQL icon | `components/ui/svgs/mysqlIconLight.tsx` |
+| `apache` | Server icon | lucide-react `Server` |
+| `ssh` | Terminal icon | lucide-react `Terminal` |
+| `generic` | Box icon | lucide-react `Box` |
+
+**Usage:**
+
+```tsx
+import { ProcessIcon } from "@/components/process-icon";
+
+<ProcessIcon type="redis" size={18} />
+<ProcessIcon type="node" size={14} className="text-green-500" />
+```
+
+### DockerIcon
+
+Displays the Docker whale logo for containerized processes. Located at `components/docker-icon.tsx:5`.
+
+**Props:**
+
+```typescript
+type DockerIconProps = {
+  size?: number;      // Default: 20
+  className?: string;
+};
+```
+
+**Usage:**
+
+```tsx
+import { DockerIcon } from "@/components/docker-icon";
+
+<DockerIcon size={12} className="text-[#2496ed]" />
+```
+
+## shadcn/ui Components
+
+psys uses shadcn/ui components for consistent styling. All components are in `components/ui/`.
+
+### Card
+
+**Location:** `components/ui/card.tsx`
+
+**Components:**
+- `Card` - Container wrapper
+- `CardHeader` - Header section
+- `CardTitle` - Title text
+- `CardContent` - Main content area
+
+**Usage in psys:**
+
+```tsx components/connections-dashboard.tsx:245
+<Card className="h-full min-h-0 flex flex-col overflow-hidden w-full">
+  <CardHeader className="py-3 shrink-0">
+    <CardTitle className="text-base">Connections</CardTitle>
+  </CardHeader>
+  <CardContent className="flex-1 min-h-[400px] p-0 w-full">
+    <ReactFlow ... />
+  </CardContent>
+</Card>
+```
+
+### Table
+
+**Location:** `components/ui/table.tsx`
+
+**Components:**
+- `Table` - Table wrapper
+- `TableHeader` - Header row container
+- `TableBody` - Body rows container
+- `TableRow` - Individual row
+- `TableHead` - Header cell
+- `TableCell` - Data cell
+
+**Usage in psys:**
+
+```tsx components/connections-dashboard.tsx:275
+<Table className="w-full">
+  <TableHeader>
+    <TableRow>
+      <TableHead>Process</TableHead>
+      <TableHead>Port</TableHead>
+      ...
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {data.listeners.map((l) => (
+      <TableRow key={...}>
+        <TableCell>{l.processName}</TableCell>
+        ...
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>
+```
+
+### Badge
+
+**Location:** `components/ui/badge.tsx`
+
+**Variants:**
+- `default` - Primary style
+- `secondary` - Muted style
+- `destructive` - Error style
+- `outline` - Outlined style
+
+**Usage in psys:**
+
+```tsx components/connections-dashboard.tsx:339
+<Badge variant="secondary">
+  {connection.toLabel || `${connection.toAddress}:${connection.toPort}`}
+</Badge>
+```
+
+### Button
+
+**Location:** `components/ui/button.tsx`
+
+**Variants:** `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`
+
+**Sizes:** `default`, `sm`, `lg`, `icon`
+
+**Usage in psys:**
+
+```tsx components/connections-dashboard.tsx:225
+<Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+  <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+  Refresh
+</Button>
+```
+
+### Tabs
+
+**Location:** `components/ui/tabs.tsx`
+
+**Components:**
+- `Tabs` - Container
+- `TabsList` - Tab buttons container
+- `TabsTrigger` - Individual tab button
+- `TabsContent` - Content for each tab
+
+**Usage in psys:**
+
+```tsx components/connections-dashboard.tsx:233
+<Tabs defaultValue="diagram">
+  <TabsList>
+    <TabsTrigger value="diagram">
+      <Network className="h-4 w-4" />
+      Diagram
+    </TabsTrigger>
+    <TabsTrigger value="table">
+      <TableIcon className="h-4 w-4" />
+      Table
+    </TabsTrigger>
+  </TabsList>
+  <TabsContent value="diagram">...</TabsContent>
+  <TabsContent value="table">...</TabsContent>
+</Tabs>
+```
+
+## Service Logos
+
+All service logos are in `components/ui/svgs/` and follow a consistent API:
+
+**Available SVGs:**
+- `nodejs.tsx` - Node.js logo
+- `nextjsIconDark.tsx` / `nextjsLogoLight.tsx` - Next.js logos
+- `redis.tsx` - Redis logo
+- `mongodbIconLight.tsx` / `mongodbIconDark.tsx` / `mongodbWordmarkLight.tsx` / `mongodbWordmarkDark.tsx` - MongoDB variations
+- `postgresql.tsx` / `postgresqlWordmarkLight.tsx` / `postgresqlWordmarkDark.tsx` - PostgreSQL variations
+- `mysqlIconLight.tsx` / `mysqlIconDark.tsx` / `mysqlWordmarkLight.tsx` / `mysqlWordmarkDark.tsx` - MySQL variations
+- `docker.tsx` - Docker whale logo
+
+**Props:**
+
+```typescript
+type SvgProps = {
+  width?: number;
+  height?: number;
+  className?: string;
+};
+```
+
+## Component Utilities
+
+### buildFlow
+
+Transforms `ConnectionsData` into React Flow nodes and edges. Located at `components/connections-dashboard.tsx:78`.
+
+**Signature:**
+
+```typescript
+function buildFlow(data: ConnectionsData): {
+  nodes: Node[];
+  edges: Edge[];
+}
+```
+
+**Algorithm:**
+1. Create listener nodes (left side) with vertical spacing
+2. Build a map of unique connection targets
+3. Create target nodes (right side) for each unique target
+4. Create edges from listeners to targets
+5. Deduplicate edges to prevent visual clutter
+
+**Node Positioning:**
+- Listeners: `x: 40`, `y: 40 + index * (NODE_HEIGHT + GAP)`
+- Targets: `x: 40 + LISTENER_NODE_WIDTH + 120`, `y: 40 + index * (NODE_HEIGHT + GAP)`
+
+<Tip>
+  React Flow handles node dragging and viewport controls automatically. The `fitView` prop ensures all nodes are visible on initial render.
+</Tip>

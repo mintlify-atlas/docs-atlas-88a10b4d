@@ -1,0 +1,188 @@
+---
+title: Analyzing Connections
+description: Understand how psys tracks and visualizes network connections between processes
+---
+
+## What Are Established Connections?
+
+Established connections represent active TCP connections between processes on your system. These are network communications that are currently in progress, such as:
+
+- A web application connecting to a database
+- A Node.js service calling an external API
+- Inter-service communication in a microservices architecture
+
+psys uses the `ss` command to discover all established TCP connections:
+
+```bash
+ss -tnp
+```
+
+## Connection Data Structure
+
+Each connection contains information about the source and destination:
+
+<CodeGroup>
+
+```typescript lib/connections.ts
+export type Connection = {
+  fromPid: number;           // Process ID making the connection
+  fromProcessName: string;    // Name of the source process
+  fromAddress: string;        // Local address
+  fromPort: number;           // Local port
+  toAddress: string;          // Remote address
+  toPort: number;             // Remote port
+  toLabel?: string;           // Friendly name for the target
+};
+```
+
+</CodeGroup>
+
+## Table View: Connection Badges
+
+In the **Table** view, connections are displayed as badge indicators in the "Connect to" column of the listeners table. Each badge shows the target of a connection:
+
+<Steps>
+  <Step title="Target identification">
+    psys attempts to identify the connection target using multiple methods:
+    
+    - **Docker container names** - If the target port is published by a Docker container
+    - **Known services** - Common services like MongoDB (27017), Redis (6379), PostgreSQL (5432), MySQL (3306)
+    - **Process names** - For local connections, psys looks up the process name at that port
+    - **Address:port** - Falls back to showing the raw address and port
+  </Step>
+  
+  <Step title="Badge display">
+    Up to 5 connection targets are shown as individual badges. If there are more connections, a "+N" badge indicates the additional count.
+  </Step>
+  
+  <Step title="Filtering logic">
+    Connections are matched to listeners by PID and source port:
+    
+    ```typescript
+    const conns = data.connections.filter(
+      (c) => c.fromPid === l.pid && c.fromPort === l.port
+    );
+    ```
+  </Step>
+</Steps>
+
+<Info>
+Badges use the **secondary** variant for connection targets and the **outline** variant for the overflow count indicator.
+</Info>
+
+## Diagram View: Visual Network Graph
+
+The **Diagram** view provides a visual representation of your system's network topology using ReactFlow. This interactive graph shows:
+
+### Listener Nodes (Left Side)
+
+Rectangular nodes with:
+- **Process icon** - Visual indicator of the service type
+- **Docker icon** - Shown if the port is published by a container
+- **Service label** - Process name or detected service
+- **Port number** - The listening port
+
+Listener nodes are positioned vertically on the left side of the diagram:
+
+```typescript components/connections-dashboard.tsx:92
+nodes.push({
+  id,
+  type: "listener",
+  position: { x: 40, y: 40 + i * (NODE_HEIGHT + GAP) },
+  data: {
+    label: l.serviceLabel || l.processName || `:${l.port}`,
+    port: l.port,
+    pid: l.pid,
+    processIconType: l.processIconType,
+    isDocker: !!l.containerName,
+  },
+});
+```
+
+### Target Nodes (Right Side)
+
+Rounded nodes representing connection targets:
+- **Target label** - Service name or address:port
+- **Address and port** - Connection destination details
+
+Target nodes are automatically positioned to the right:
+
+```typescript components/connections-dashboard.tsx:114
+nodes.push({
+  id: toId,
+  type: "target",
+  position: {
+    x: 40 + LISTENER_NODE_WIDTH + 120,
+    y: 40 + targetIndex * (NODE_HEIGHT + GAP),
+  },
+  data: {
+    label,
+    address: c.toAddress,
+    port: c.toPort,
+  },
+});
+```
+
+### Edges: Connection Lines
+
+Arrows drawn from listener nodes to target nodes represent active connections. Each edge is created only once per unique listener-target pair:
+
+```typescript components/connections-dashboard.tsx:132
+edges.push({
+  id: `e-${fromId}-${toId}-${edges.length}`,
+  source: fromId,
+  target: toId,
+});
+```
+
+<Note>
+Duplicate edges between the same listener and target are deduplicated to keep the diagram clean and readable.
+</Note>
+
+## Target Label Resolution
+
+psys uses a smart resolution strategy to provide meaningful labels for connection targets:
+
+<CodeGroup>
+
+```typescript lib/connections.ts:300
+let toLabel = dockerLabels.get(toKey) || knownPortLabel(toPort);
+if (!toLabel) {
+  const peerName = processAtLocalAddr.get(toKey)
+    ?? processAtLocalAddr.get(alternateLoopbackKey(toKey));
+  if (peerName) toLabel = peerName;
+}
+```
+
+</CodeGroup>
+
+The resolution order is:
+
+1. **Docker container name** - Check if the target port matches a Docker container
+2. **Known service by port** - Use well-known port mappings (MongoDB, Redis, etc.)
+3. **Local process lookup** - For loopback connections, find the process at that port
+4. **IPv4/IPv6 alternates** - Check both loopback addresses (127.0.0.1 and ::1)
+
+<Tip>
+The diagram view includes interactive controls for zooming, panning, and a mini-map for navigation in complex network graphs.
+</Tip>
+
+## Known Service Ports
+
+For connection targets, psys recognizes these common services:
+
+```typescript lib/connections.ts:328
+function knownPortLabel(port: number): string | undefined {
+  const known: Record<number, string> = {
+    27017: "MongoDB",
+    6379: "Redis",
+    5432: "PostgreSQL",
+    3306: "MySQL",
+    9200: "Elasticsearch",
+    5672: "RabbitMQ",
+  };
+  return known[port];
+}
+```
+
+This helps you quickly identify where your services are connecting without needing to remember port numbers.

@@ -1,0 +1,199 @@
+---
+title: 'Network Visualization'
+description: 'Interactive React Flow diagram showing network connections'
+---
+
+## Overview
+
+psys provides an interactive network diagram that visualizes the relationships between listening processes and their network connections using React Flow.
+
+## Diagram Architecture
+
+The visualization follows a left-to-right layout:
+
+- **Left side**: Listener nodes (processes listening on ports)
+- **Right side**: Target nodes (remote addresses being connected to)
+- **Edges**: Connections between listeners and targets
+
+### Node Types
+
+psys implements two custom node types:
+
+#### Listener Nodes
+
+Listener nodes represent processes that are listening on network ports:
+
+```typescript
+function ListenerNode({ data }: NodeProps<{ 
+  label: string; 
+  port: number; 
+  pid?: number; 
+  processIconType?: string; 
+  isDocker?: boolean 
+}>) {
+  return (
+    <div className="rounded-lg border-2 border-primary/30 bg-card px-3 py-2 shadow-sm">
+      <Handle type="source" position={Position.Right} className="!w-2 !h-2" />
+      <div className="font-medium text-sm flex items-center gap-1.5 flex-wrap">
+        <ProcessIcon type={data.processIconType} size={14} />
+        {data.isDocker && <DockerIcon size={12} className="text-[#2496ed]" />}
+        {labelMain}
+      </div>
+      <div className="text-xs text-muted-foreground">port {data.port}</div>
+    </div>
+  );
+}
+```
+
+<Note>
+Listener nodes display process icons (Node.js, Redis, MongoDB, etc.) and Docker indicators for containerized processes.
+</Note>
+
+#### Target Nodes
+
+Target nodes represent remote addresses that listeners are connecting to:
+
+```typescript
+function TargetNode({ data }: NodeProps<{ 
+  label: string; 
+  address: string; 
+  port: number 
+}>) {
+  return (
+    <div className="rounded-lg border-2 border-muted bg-muted/50 px-3 py-2 shadow-sm">
+      <Handle type="target" position={Position.Left} className="!w-2 !h-2" />
+      <div className="font-medium text-sm">{data.label}</div>
+      <div className="text-xs text-muted-foreground">{data.address}:{data.port}</div>
+    </div>
+  );
+}
+```
+
+## Flow Building Logic
+
+The `buildFlow` function converts connection data into React Flow nodes and edges:
+
+```typescript
+function buildFlow(data: ConnectionsData): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+  const targetIds = new Map<string, string>();
+  const listenerIdByPidPort = new Map<string, string>();
+
+  // Create listener nodes on the left
+  data.listeners.forEach((l, i) => {
+    const id = `listen-${i}-${l.pid}-${l.port}`;
+    nodes.push({
+      id,
+      type: "listener",
+      position: { x: 40, y: 40 + i * (NODE_HEIGHT + GAP) },
+      data: {
+        label: l.serviceLabel || l.processName || `:${l.port}`,
+        port: l.port,
+        pid: l.pid,
+        processIconType: l.processIconType,
+        isDocker: !!l.containerName,
+      },
+    });
+  });
+
+  // Create target nodes on the right and edges
+  data.connections.forEach((c) => {
+    const fromId = listenerIdByPidPort.get(`${c.fromPid}-${c.fromPort}`);
+    if (!fromId) return;
+    
+    const toKey = `${c.toAddress}:${c.toPort}`;
+    let toId = targetIds.get(toKey);
+    
+    if (!toId) {
+      // Create new target node
+      toId = `target-${toKey.replace(/[.:]/g, "_")}`;
+      nodes.push({
+        id: toId,
+        type: "target",
+        position: {
+          x: 40 + LISTENER_NODE_WIDTH + 120,
+          y: 40 + targetIndex * (NODE_HEIGHT + GAP),
+        },
+        data: { label, address: c.toAddress, port: c.toPort },
+      });
+    }
+    
+    // Create edge
+    edges.push({
+      id: `e-${fromId}-${toId}-${edges.length}`,
+      source: fromId,
+      target: toId,
+    });
+  });
+
+  return { nodes, edges };
+}
+```
+
+## Interactive Controls
+
+The diagram includes React Flow's built-in interactive features:
+
+```typescript
+<ReactFlow
+  nodes={nodes}
+  edges={edges}
+  onNodesChange={onNodesChange}
+  onEdgesChange={onEdgesChange}
+  nodeTypes={nodeTypes}
+  fitView
+  fitViewOptions={{ padding: 0.2 }}
+  proOptions={{ hideAttribution: true }}
+>
+  <Background />
+  <Controls />
+  <MiniMap />
+</ReactFlow>
+```
+
+### Available Controls
+
+<CardGroup cols={3}>
+  <Card title="Zoom" icon="magnifying-glass">
+    Use mouse wheel or zoom controls to zoom in/out
+  </Card>
+  <Card title="Pan" icon="hand">
+    Click and drag to pan around the diagram
+  </Card>
+  <Card title="Minimap" icon="map">
+    Overview of the entire network topology
+  </Card>
+</CardGroup>
+
+## Layout Configuration
+
+The layout uses fixed spacing constants:
+
+```typescript
+const LISTENER_NODE_WIDTH = 180;
+const NODE_HEIGHT = 56;
+const GAP = 24;
+```
+
+- Listener nodes are positioned vertically on the left at x=40
+- Target nodes are positioned at x=40 + LISTENER_NODE_WIDTH + 120
+- Vertical spacing between nodes is NODE_HEIGHT + GAP (80px total)
+
+<Info>
+The diagram automatically fits to view on load with `fitView` and 20% padding around the edges.
+</Info>
+
+## Auto-Refresh
+
+The diagram updates automatically every 5 seconds:
+
+```typescript
+useEffect(() => {
+  fetchData();
+  const t = setInterval(fetchData, 5000);
+  return () => clearInterval(t);
+}, [fetchData]);
+```
+
+When new data arrives, nodes and edges are rebuilt and React Flow handles the smooth transition.

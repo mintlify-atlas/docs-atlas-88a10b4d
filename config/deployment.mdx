@@ -1,0 +1,97 @@
+---
+title: 'Deployment'
+description: 'Deploy psys in development or production mode'
+---
+
+psys can run in two modes: development mode for local testing with hot reload, or production mode for optimized performance.
+
+## Development Mode
+
+Development mode runs with hot reload and debugging tools enabled.
+
+<Steps>
+  <Step title="Install dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    npm run dev
+    ```
+    
+    This runs `next dev --turbopack` which starts the Next.js development server with Turbopack for faster builds.
+  </Step>
+
+  <Step title="Access the application">
+    Open [http://localhost:3000](http://localhost:3000) in your browser.
+    
+    The page automatically polls `/api/connections` every 5 seconds to refresh process data.
+  </Step>
+</Steps>
+
+<Note>
+  Development mode is ideal for making changes and testing features, but should not be used in production environments.
+</Note>
+
+## Production Mode
+
+Production mode compiles and optimizes the application for better performance.
+
+<Steps>
+  <Step title="Build the application">
+    ```bash
+    npm run build
+    ```
+    
+    This runs `next build` to create an optimized production bundle.
+  </Step>
+
+  <Step title="Start the production server">
+    ```bash
+    npm start
+    ```
+    
+    This runs `next start` which serves the production build.
+  </Step>
+
+  <Step title="Access the application">
+    The production server runs on **port 3000** by default.
+    
+    Open [http://localhost:3000](http://localhost:3000) in your browser.
+  </Step>
+</Steps>
+
+## Port Configuration
+
+<CodeGroup>
+```bash Development (Default: 3000)
+npm run dev
+# Runs on http://localhost:3000
+```
+
+```bash Production (Default: 3000)
+npm start
+# Runs on http://localhost:3000
+```
+
+```bash Production Background (Custom: 30999)
+npm run start:bg
+# Runs on http://localhost:30999
+```
+</CodeGroup>
+
+<Note>
+  For background production mode with a custom port, see [Production Setup](/config/production-setup).
+</Note>
+
+## Available Scripts
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| `dev` | `next dev --turbopack` | Start development server with Turbopack |
+| `build` | `next build` | Build optimized production bundle |
+| `start` | `next start` | Start production server |
+| `start:bg` | `nohup next start -p 30999 > /dev/null 2>&1 &` | Start production server in background on port 30999 |
+| `lint` | `ESLINT_USE_FLAT_CONFIG=false next lint` | Run ESLint code linting |

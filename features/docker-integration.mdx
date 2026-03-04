@@ -1,0 +1,280 @@
+---
+title: 'Docker Integration'
+description: 'Automatic detection and labeling of Docker containers'
+---
+
+## Overview
+
+psys automatically detects Docker containers and their published ports, providing visual indicators and container name labels in the network visualization.
+
+## Container Detection
+
+psys uses the `docker ps` command to discover running containers:
+
+```typescript
+function getDockerPortToContainer(): Map<number, string> {
+  const byPort = new Map<number, string>();
+  try {
+    const out = execSync("docker ps --format '{{.Ports}}\t{{.Names}}'", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    for (const line of out.split("\n").filter(Boolean)) {
+      const [ports, names] = line.split("\t");
+      if (!ports || !names) continue;
+      for (const p of ports.split(", ")) {
+        const match = p.match(/(?:[\d.]+:)?(\d+)->\d+/);
+        const port = match ? parseInt(match[1], 10) : parseInt(p.split("/")[0], 10);
+        if (port && !byPort.has(port)) byPort.set(port, names);
+      }
+    }
+  } catch {
+    // ignore - docker not available or not running
+  }
+  return byPort;
+}
+```
+
+<Info>
+If Docker is not installed or not running, psys gracefully continues without Docker integration.
+</Info>
+
+## Port Mapping Parsing
+
+The function parses Docker's port mapping format:
+
+```
+0.0.0.0:6379->6379/tcp, :::6379->6379/tcp
+```
+
+Extracts:
+- **Host port**: 6379 (the port exposed on the host machine)
+- **Container port**: 6379 (the internal container port)
+- **Protocol**: tcp
+
+### Regex Pattern
+
+```typescript
+const match = p.match(/(?:[\d.]+:)?(\d+)->\d+/);
+```
+
+This pattern matches:
+- Optional IP address (e.g., `0.0.0.0:` or `127.0.0.1:`)
+- Required host port number
+- Arrow `->`
+- Container port number
+
+## Container Name Labeling
+
+Once a port is identified as Docker-published, psys uses the container name as the service label:
+
+```typescript
+const dockerContainer = dockerPortToContainer.get(port);
+const serviceLabel = isOwnApp
+  ? "psys"
+  : dockerContainer
+    ? dockerContainer
+    : processName === "?" && knownService
+      ? `${port} (typical: ${knownService})`
+      : processName === "?" && !dockerContainer
+        ? `${port} (unknown)`
+        : undefined;
+
+listeners.push({
+  pid,
+  processName,
+  serviceLabel: serviceLabel || undefined,
+  containerName: dockerContainer,  // Set to container name if Docker
+  processIconType: isOwnApp ? "psys" : getProcessIconType(processName, dockerContainer, port),
+  address,
+  addressDescription: getAddressDescription(address),
+  port,
+  cmd: pid ? getProcessCmd(pid) : undefined,
+});
+```
+
+## Docker Icon Indicators
+
+When a listener is associated with a Docker container, a Docker icon is displayed:
+
+### In Listener Nodes
+
+```typescript
+function ListenerNode({ data }: NodeProps<{ 
+  label: string; 
+  port: number; 
+  pid?: number; 
+  processIconType?: string; 
+  isDocker?: boolean 
+}>) {
+  return (
+    <div className="rounded-lg border-2 border-primary/30 bg-card px-3 py-2 shadow-sm">
+      <Handle type="source" position={Position.Right} className="!w-2 !h-2" />
+      <div className="font-medium text-sm flex items-center gap-1.5 flex-wrap">
+        <ProcessIcon type={data.processIconType} size={14} />
+        {data.isDocker && <DockerIcon size={12} className="text-[#2496ed]" />}
+        {labelMain}
+      </div>
+      <div className="text-xs text-muted-foreground">port {data.port}</div>
+    </div>
+  );
+}
+```
+
+### In Table View
+
+```typescript
+<TableCell className="text-center">
+  {l.containerName ? (
+    <DockerIcon size={20} className="text-[#2496ed]" />
+  ) : (
+    <span className="text-muted-foreground text-sm">No</span>
+  )}
+</TableCell>
+```
+
+<Note>
+The Docker icon uses the official Docker blue color `#2496ed` for brand consistency.
+</Note>
+
+## Enhanced Icon Detection
+
+Docker container names are used to improve icon detection:
+
+```typescript
+function getProcessIconType(
+  processName: string,
+  containerName: string | undefined,
+  port: number
+): string | undefined {
+  const name = processName.toLowerCase();
+  const container = (containerName ?? "").toLowerCase();
+  
+  // Process name detection
+  if (name.includes("node") || name === "mainthread") return "node";
+  if (name.includes("redis")) return "redis";
+  // ... more process checks
+  
+  // Container name detection
+  if (container.includes("redis")) return "redis";
+  if (container.includes("mongo")) return "mongo";
+  if (container.includes("postgres")) return "postgres";
+  if (container.includes("mysql")) return "mysql";
+  
+  // Fall back to port-based detection
+  return PORT_ICON_TYPE[port] ?? "generic";
+}
+```
+
+<Tip>
+Name your Docker containers descriptively (e.g., `my-redis`, `api-postgres`) to enable automatic icon detection.
+</Tip>
+
+## Connection Labeling
+
+Docker container names are also used to label connection targets:
+
+```typescript
+function getDockerPortLabels(): Map<string, string> {
+  const labels = new Map<string, string>();
+  try {
+    const out = execSync("docker ps --format '{{.Ports}}\t{{.Names}}\t{{.Image}}'", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    for (const line of out.split("\n").filter(Boolean)) {
+      const [ports, names] = line.split("\t");
+      if (!ports || !names) continue;
+      const portMappings = ports.split(", ");
+      for (const p of portMappings) {
+        const match = p.match(/(?:[\d.]+:)?(\d+)->\d+/);
+        const port = match ? match[1] : p.split("/")[0];
+        if (port) labels.set(`127.0.0.1:${port}`, names);
+        labels.set(`0.0.0.0:${port}`, names);
+      }
+    }
+  } catch {
+    // docker not available or not running
+  }
+  return labels;
+}
+```
+
+This creates a mapping from `address:port` to container name, which is used when building connection labels:
+
+```typescript
+let toLabel = dockerLabels.get(toKey) || knownPortLabel(toPort);
+```
+
+## Example Docker Scenarios
+
+### Redis Container
+
+```bash
+docker run -d --name my-redis -p 6379:6379 redis
+```
+
+psys will display:
+- Service label: `my-redis`
+- Docker icon indicator
+- Redis process icon
+- Port: 6379
+
+### PostgreSQL Container
+
+```bash
+docker run -d --name postgres-db -p 5432:5432 postgres
+```
+
+psys will display:
+- Service label: `postgres-db`
+- Docker icon indicator
+- PostgreSQL process icon
+- Port: 5432
+
+### Custom Port Mapping
+
+```bash
+docker run -d --name api-server -p 8080:3000 node:alpine
+```
+
+psys will display:
+- Service label: `api-server`
+- Docker icon indicator
+- Node.js process icon
+- Port: 8080 (host port)
+
+<Warning>
+psys detects the **host port** (8080), not the container's internal port (3000).
+</Warning>
+
+## Requirements
+
+<CardGroup cols={2}>
+  <Card title="Docker Engine" icon="docker">
+    Docker must be installed and running on the system
+  </Card>
+  <Card title="Docker Permissions" icon="key">
+    User must have permissions to run `docker ps` (typically requires docker group membership)
+  </Card>
+</CardGroup>
+
+## Graceful Degradation
+
+If Docker is not available:
+- No errors are thrown
+- Docker integration is silently disabled
+- All other psys features continue to work normally
+- Non-Docker processes are still monitored and displayed
+
+```typescript
+try {
+  const out = execSync("docker ps --format '{{.Ports}}\t{{.Names}}'", {
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "ignore"],
+  });
+  // ... parse output
+} catch {
+  // Docker not available - ignore and continue
+}
+```

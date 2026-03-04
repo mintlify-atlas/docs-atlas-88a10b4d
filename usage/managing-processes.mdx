@@ -1,0 +1,199 @@
+---
+title: Managing Processes
+description: Learn how to control processes directly from psys using the built-in process management features
+---
+
+## Kill Process Button
+
+psys provides a convenient way to terminate processes directly from the listeners table. Each row in the table includes an **Actions** column with a trash icon button that allows you to kill the process.
+
+<Warning>
+The kill button sends a **SIGTERM** signal, which allows the process to gracefully shut down. This is the recommended way to stop services.
+</Warning>
+
+## How It Works
+
+When you click the kill button, psys:
+
+1. Sends a POST request to `/api/connections/kill` with the process ID
+2. The API validates the PID and attempts to terminate the process
+3. Automatically refreshes the connections data to reflect the change
+
+<CodeGroup>
+
+```typescript components/connections-dashboard.tsx:168
+const killProcess = useCallback(
+  async (pid: number) => {
+    setKillingPid(pid);
+    try {
+      const res = await fetch("/api/connections/kill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pid }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? res.statusText);
+      await fetchData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to kill process");
+    } finally {
+      setKillingPid(null);
+    }
+  },
+  [fetchData]
+);
+```
+
+</CodeGroup>
+
+## The Kill API Endpoint
+
+The API endpoint handles the termination request with proper validation and error handling:
+
+<CodeGroup>
+
+```typescript app/api/connections/kill/route.ts
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const pid = typeof body?.pid === "number" ? body.pid : parseInt(String(body?.pid), 10);
+    if (!Number.isInteger(pid) || pid <= 0) {
+      return NextResponse.json({ error: "Invalid pid" }, { status: 400 });
+    }
+    process.kill(pid, "SIGTERM");
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    const err = e as NodeJS.ErrnoException;
+    if (err?.code === "ESRCH") {
+      return NextResponse.json({ error: "Process not found" }, { status: 404 });
+    }
+    if (err?.code === "EPERM") {
+      return NextResponse.json({ error: "Permission denied" }, { status: 403 });
+    }
+    console.error(e);
+    return NextResponse.json(
+      { error: err?.message ?? "Failed to kill process" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+</CodeGroup>
+
+## SIGTERM Signal
+
+psys uses **SIGTERM** (signal 15) to terminate processes. This signal:
+
+- Allows the process to perform cleanup operations
+- Closes open files and network connections gracefully
+- Triggers shutdown hooks and handlers
+- Is the standard way to request process termination
+
+<Note>
+SIGTERM is **not** a forceful kill. If a process doesn't respond to SIGTERM, you may need to use `kill -9` (SIGKILL) from the command line.
+</Note>
+
+## Permission Requirements
+
+On Linux, you can only send signals to processes that you own. This means:
+
+<Accordion title="What processes can I kill?">
+  - Processes running under your user account
+  - Processes started by you
+  - **Not** system processes owned by root (unless you run psys as root)
+  - **Not** processes owned by other users
+</Accordion>
+
+<Accordion title="What happens if I don't have permission?">
+  The API will return a **403 Forbidden** error with the message "Permission denied". This is handled by catching the `EPERM` error code from Node.js.
+</Accordion>
+
+## Error Handling
+
+psys provides specific error messages for different failure scenarios:
+
+### ESRCH - Process Not Found
+
+**HTTP 404**: The process with the specified PID does not exist. This can happen if:
+- The process already terminated
+- You specified an invalid PID
+- The process ended between when you viewed the table and clicked kill
+
+### EPERM - Permission Denied
+
+**HTTP 403**: You don't have permission to kill this process. Reasons include:
+- The process is owned by another user
+- The process is a system process (owned by root)
+- SELinux or AppArmor policies prevent the operation
+
+### Invalid PID
+
+**HTTP 400**: The provided PID is not valid (not a positive integer).
+
+### Other Errors
+
+**HTTP 500**: Any other unexpected error, with the error message included in the response.
+
+## UI Feedback
+
+The kill button provides visual feedback during the operation:
+
+```typescript components/connections-dashboard.tsx:354
+<Button
+  variant="ghost"
+  size="icon"
+  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+  title="Kill process (SIGTERM)"
+  disabled={killingPid === l.pid}
+  onClick={() => killProcess(l.pid!)}
+>
+  {killingPid === l.pid ? (
+    <RefreshCw className="h-4 w-4 animate-spin" />
+  ) : (
+    <Trash2 className="h-4 w-4" />
+  )}
+</Button>
+```
+
+<Steps>
+  <Step title="Idle state">
+    Shows a trash icon in destructive color (red)
+  </Step>
+  
+  <Step title="Processing">
+    Button is disabled and shows a spinning refresh icon
+  </Step>
+  
+  <Step title="Success">
+    The process disappears from the table on the next refresh
+  </Step>
+  
+  <Step title="Error">
+    Error message is displayed, and the button returns to idle state
+  </Step>
+</Steps>
+
+<Tip>
+psys automatically refreshes the data every 5 seconds, so after successfully killing a process, you'll see it disappear from the table shortly.
+</Tip>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use SIGTERM First" icon="circle-check">
+    Always try SIGTERM (the psys kill button) before resorting to SIGKILL from the command line.
+  </Card>
+  
+  <Card title="Check Connections" icon="link">
+    Before killing a process, review its connections in the "Connect to" column to understand its dependencies.
+  </Card>
+  
+  <Card title="Verify PID" icon="hashtag">
+    If you're unsure about a process, check the full command in the PID column tooltip before terminating it.
+  </Card>
+  
+  <Card title="Permission Awareness" icon="shield">
+    Remember you can only kill your own processes. Run psys with appropriate privileges if needed.
+  </Card>
+</CardGroup>

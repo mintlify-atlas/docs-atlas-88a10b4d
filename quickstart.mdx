@@ -1,80 +1,213 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get psys up and running in minutes
 ---
 
-## Get started in three steps
+## What is psys?
 
-Get your documentation site running locally and make your first customization.
+psys (Process System) is a web app that visualizes which processes expose ports (LISTEN) and how they connect to other services (ESTABLISHED). It provides:
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+- A **diagram view** showing the flow of connections between processes
+- A **table view** listing all listeners with process details and their outgoing connections
+- Real-time updates every 5 seconds
+- Docker container detection for published ports
+- Process identification with icons for common services (Node.js, Redis, PostgreSQL, etc.)
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  psys uses `ss -tlnp` and `ss -tnp` to gather connection data, and reads from `/proc` for process information.
+</Note>
+
+## Quick Installation
+
+<Steps>
+  <Step title="Install dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    npm run dev
+    ```
+
+    This starts Next.js with Turbopack on [http://localhost:3000](http://localhost:3000).
+  </Step>
+
+  <Step title="Open the app">
+    Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+  </Step>
+</Steps>
+
+That's it! You should now see your system's network connections.
+
+## Development Mode
+
+For development with hot-reload:
+
+```bash
+npm run dev
+```
+
+This command runs `next dev --turbopack`, which:
+- Starts the Next.js development server with Turbopack for faster builds
+- Enables hot module replacement (HMR)
+- Listens on port 3000 by default
+- Shows detailed error messages
+
+<Note>
+  Development mode is great for testing, but use production mode for regular use to get better performance.
+</Note>
+
+## Production Mode
+
+For better performance and a cleaner experience:
+
+<Steps>
+  <Step title="Build the production bundle">
+    ```bash
+    npm run build
+    ```
+
+    This runs `next build` to create an optimized production build.
+  </Step>
+
+  <Step title="Start the production server">
+    ```bash
+    npm run start
+    ```
+
+    The app will run on [http://localhost:3000](http://localhost:3000).
+  </Step>
+</Steps>
+
+### Background Mode (Recommended)
+
+To run psys in the background without terminal output:
+
+```bash
+npm run build && npm run start:bg
+```
+
+This command:
+- Builds the production version
+- Starts the server on port **30999** in the background
+- Redirects all output to `/dev/null`
+- Returns control to your terminal immediately
+
+Access the app at [http://localhost:30999](http://localhost:30999).
+
+<Warning>
+  You must run `npm run build` at least once before using `npm run start:bg`.
+</Warning>
+
+## First Look at the UI
+
+psys provides two views of your system's network connections:
+
+### Diagram View
+
+The **Diagram** tab shows a visual flow chart:
+
+- **Left side**: Listener nodes (processes exposing ports)
+  - Shows process name or service label
+  - Displays Docker icon for containerized services
+  - Shows port number
+  - Icons indicate service type (Node.js, Redis, MongoDB, etc.)
+
+- **Right side**: Target nodes (services being connected to)
+  - Shows destination address and port
+  - Labels known services automatically
+
+- **Edges**: Lines connecting listeners to their outgoing connections
+
+- **Controls**:
+  - Pan: Click and drag
+  - Zoom: Mouse wheel or pinch
+  - Fit view: Use the controls in the bottom-left corner
+  - Mini-map: Bottom-right corner for navigation
+
+### Table View
+
+The **Table** tab provides detailed information:
+
+| Column | Description |
+|--------|-------------|
+| **Process** | Process name or service label (e.g., "node", "Redis", "PostgreSQL") |
+| **Is Docker Container** | Shows Docker icon if the port is published by a container |
+| **Port** | The listening port number |
+| **Address** | The bind address (e.g., `0.0.0.0`, `127.0.0.1`) |
+| **Address description** | Human-readable explanation (e.g., "Listening on all IPv4 interfaces") |
+| **Connect to** | Badges showing outgoing connections to other services |
+| **PID** | Process ID |
+| **Actions** | Kill button to terminate the process (SIGTERM) |
+
+<Note>
+  The table is sorted to show recognizable services (those with specific icons) at the top.
+</Note>
+
+## Understanding the Data
+
+### Listener Addresses
+
+- `0.0.0.0` - Listening on all IPv4 interfaces (accessible from network)
+- `127.0.0.1` - Localhost only (local connections only)
+- `::` or `::1` - IPv6 localhost or all interfaces
+- `127.0.0.53` - systemd-resolved (local DNS)
+
+### Service Detection
+
+psys automatically detects common services:
+
+- **By process name**: `node`, `redis-server`, `mongod`, `postgres`, etc.
+- **By port number**: 6379 (Redis), 27017 (MongoDB), 5432 (PostgreSQL), 3306 (MySQL)
+- **By Docker container**: Reads container names from `docker ps`
+
+### Auto-refresh
+
+The page polls `/api/connections` every 5 seconds to show live updates of your system's network state.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Set up an alias" icon="terminal" href="/config/shell-aliases">
+    Create a shell alias to start psys with a single command
+  </Card>
+  
+  <Card title="Production Setup" icon="gear" href="/config/production-setup">
+    Learn about background mode and production deployment
+  </Card>
+  
+  <Card title="Docker Support" icon="docker" href="/features/docker-integration">
+    Learn how psys detects and displays Docker containers
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/connections">
+    Explore the REST API endpoints
+  </Card>
+</CardGroup>
+
+## Common Commands
+
+Here are the available npm scripts:
+
+```bash
+# Development server with Turbopack (hot-reload)
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server (foreground)
+npm run start
+
+# Start production server (background, port 30999)
+npm run start:bg
+
+# Run ESLint
+npm run lint
+```
+
+<Note>
+  All scripts are defined in `package.json` and use the Next.js CLI.
 </Note>

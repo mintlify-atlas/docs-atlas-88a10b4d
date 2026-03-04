@@ -1,0 +1,184 @@
+---
+title: 'Get Connections'
+api: 'GET /api/connections'
+description: 'Retrieve all active network listeners and connections on the system'
+---
+
+## Endpoint
+
+```
+GET /api/connections
+```
+
+Retrieves comprehensive information about all listening ports and established network connections on the system. This endpoint uses the `ss` command internally to gather network statistics.
+
+## Request
+
+No parameters required. This is a simple GET request.
+
+```bash
+curl http://localhost:3002/api/connections
+```
+
+## Response
+
+Returns a JSON object containing two arrays: `listeners` and `connections`.
+
+<ResponseField name="listeners" type="Listener[]" required>
+  Array of all listening ports on the system
+  
+  <Expandable title="Listener Object">
+    <ResponseField name="pid" type="number" required>
+      Process ID of the listening process
+    </ResponseField>
+    
+    <ResponseField name="processName" type="string" required>
+      Name of the process (e.g., "node", "redis-server")
+    </ResponseField>
+    
+    <ResponseField name="serviceLabel" type="string">
+      Human-readable service label. Shows container name for Docker services, or common service names like "Redis", "PostgreSQL", etc.
+    </ResponseField>
+    
+    <ResponseField name="containerName" type="string">
+      Docker container name if this port is published by a Docker container
+    </ResponseField>
+    
+    <ResponseField name="processIconType" type="string">
+      Icon type for UI display. Possible values: "node", "next", "redis", "mongo", "postgres", "mysql", "apache", "ssh", "psys", "generic"
+    </ResponseField>
+    
+    <ResponseField name="address" type="string" required>
+      IP address the service is listening on (e.g., "0.0.0.0", "127.0.0.1", "::")
+    </ResponseField>
+    
+    <ResponseField name="addressDescription" type="string">
+      Human-readable description of the address (e.g., "Listening on all IPv4 interfaces", "Localhost only (IPv4)")
+    </ResponseField>
+    
+    <ResponseField name="port" type="number" required>
+      Port number the service is listening on
+    </ResponseField>
+    
+    <ResponseField name="cmd" type="string">
+      Full command line of the process (truncated to 80 characters)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="connections" type="Connection[]" required>
+  Array of all established TCP connections
+  
+  <Expandable title="Connection Object">
+    <ResponseField name="fromPid" type="number" required>
+      Process ID that initiated the connection
+    </ResponseField>
+    
+    <ResponseField name="fromProcessName" type="string" required>
+      Name of the process that initiated the connection
+    </ResponseField>
+    
+    <ResponseField name="fromAddress" type="string" required>
+      Source IP address of the connection
+    </ResponseField>
+    
+    <ResponseField name="fromPort" type="number" required>
+      Source port number of the connection
+    </ResponseField>
+    
+    <ResponseField name="toAddress" type="string" required>
+      Destination IP address of the connection
+    </ResponseField>
+    
+    <ResponseField name="toPort" type="number" required>
+      Destination port number of the connection
+    </ResponseField>
+    
+    <ResponseField name="toLabel" type="string">
+      Label for the destination service (e.g., "Redis", "MongoDB", Docker container name)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "listeners": [
+    {
+      "pid": 1234,
+      "processName": "node",
+      "serviceLabel": "psys",
+      "address": "0.0.0.0",
+      "addressDescription": "Listening on all IPv4 interfaces",
+      "port": 3002,
+      "processIconType": "psys",
+      "cmd": "node /home/user/.next/server/app.js"
+    },
+    {
+      "pid": 5678,
+      "processName": "redis-server",
+      "serviceLabel": "Redis",
+      "address": "127.0.0.1",
+      "addressDescription": "Localhost only (IPv4)",
+      "port": 6379,
+      "processIconType": "redis",
+      "cmd": "redis-server *:6379"
+    },
+    {
+      "pid": 9012,
+      "processName": "docker-proxy",
+      "serviceLabel": "postgres-db",
+      "containerName": "postgres-db",
+      "address": "0.0.0.0",
+      "addressDescription": "Listening on all IPv4 interfaces",
+      "port": 5432,
+      "processIconType": "postgres"
+    }
+  ],
+  "connections": [
+    {
+      "fromPid": 1234,
+      "fromProcessName": "node",
+      "fromAddress": "127.0.0.1",
+      "fromPort": 45678,
+      "toAddress": "127.0.0.1",
+      "toPort": 6379,
+      "toLabel": "Redis"
+    },
+    {
+      "fromPid": 1234,
+      "fromProcessName": "node",
+      "fromAddress": "127.0.0.1",
+      "fromPort": 45679,
+      "toAddress": "127.0.0.1",
+      "toPort": 5432,
+      "toLabel": "postgres-db"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+<ResponseField name="error" type="string">
+  Error message describing what went wrong
+</ResponseField>
+
+### 500 Internal Server Error
+
+Returned when the system fails to retrieve connection data (e.g., `ss` command not available or permission issues).
+
+```json
+{
+  "error": "Failed to get connections"
+}
+```
+
+## Implementation Notes
+
+- The endpoint is configured with `dynamic = "force-dynamic"` to ensure fresh data on every request
+- Uses the `ss` (socket statistics) command internally to gather network information
+- Automatically detects Docker containers and enriches listener data with container names
+- Provides intelligent service detection for common ports (Redis on 6379, PostgreSQL on 5432, etc.)
+- Excludes the psys application itself from appearing as a generic listener

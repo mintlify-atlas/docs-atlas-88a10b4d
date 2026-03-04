@@ -1,0 +1,224 @@
+---
+title: Architecture
+description: Technical architecture and stack overview for psys
+---
+
+psys is a real-time process and network connection monitoring tool built with Next.js 15 and the App Router. It visualizes which processes expose ports (LISTEN) and how they connect to other services (ESTABLISHED).
+
+## Stack
+
+psys uses modern web technologies for a fast and responsive experience:
+
+<CardGroup cols={2}>
+  <Card title="Framework" icon="react">
+    Next.js 15.0.0 with App Router and React 19.0.0
+  </Card>
+  <Card title="Language" icon="code">
+    TypeScript 5.x with strict mode enabled
+  </Card>
+  <Card title="Styling" icon="palette">
+    Tailwind CSS 3.4 with custom theme and animations
+  </Card>
+  <Card title="UI Library" icon="square-check">
+    shadcn/ui components built on Radix UI
+  </Card>
+</CardGroup>
+
+### Key Dependencies
+
+```json package.json (excerpt)
+{
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "reactflow": "^11.11.0",
+    "lucide-react": "^0.576.0",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "tailwind-merge": "^3.5.0",
+    "class-variance-authority": "^0.7.1"
+  }
+}
+```
+
+## Architecture Overview
+
+### Data Flow
+
+psys follows a straightforward data collection and rendering pipeline:
+
+```mermaid
+graph LR
+    A[ss -tlnp / ss -tnp] --> B[lib/connections.ts]
+    B --> C[API Route]
+    C --> D[React Components]
+    D --> E[React Flow Diagram]
+    D --> F[Data Table]
+    G[Docker CLI] --> B
+    H[/proc filesystem] --> B
+```
+
+1. **Data Collection** (`lib/connections.ts`)
+   - Executes `ss -tlnp` to get listening ports
+   - Executes `ss -tnp` to get established connections
+   - Reads process info from `/proc/{pid}/comm` and `/proc/{pid}/cmdline`
+   - Queries Docker containers via `docker ps` for container labels
+   - Parses and normalizes addresses, ports, and process names
+
+2. **API Layer** (`app/api/connections/route.ts`)
+   - Exposes GET endpoint at `/api/connections`
+   - Calls `getConnectionsData()` from lib/connections.ts
+   - Returns JSON with listeners and connections arrays
+   - Marked as `dynamic = "force-dynamic"` for real-time data
+
+3. **Frontend** (`components/connections-dashboard.tsx`)
+   - Fetches data from API every 5 seconds
+   - Transforms data into React Flow nodes and edges
+   - Renders dual views: interactive diagram and sortable table
+   - Provides process kill functionality via `/api/connections/kill`
+
+### File Structure
+
+```
+psys/
+├── app/
+│   ├── api/
+│   │   └── connections/
+│   │       ├── route.ts          # GET /api/connections
+│   │       └── kill/
+│   │           └── route.ts      # POST /api/connections/kill
+│   ├── layout.tsx                # Root layout with fonts & metadata
+│   ├── page.tsx                  # Home page (renders ConnectionsDashboard)
+│   ├── globals.css               # Global styles & CSS variables
+│   └── icon.svg                  # App icon
+├── components/
+│   ├── connections-dashboard.tsx # Main dashboard component
+│   ├── process-icon.tsx          # Process/service icon switcher
+│   ├── docker-icon.tsx           # Docker whale logo
+│   ├── psys-icon.tsx             # psys logo
+│   └── ui/
+│       ├── badge.tsx             # shadcn Badge component
+│       ├── button.tsx            # shadcn Button component
+│       ├── card.tsx              # shadcn Card component
+│       ├── table.tsx             # shadcn Table component
+│       ├── tabs.tsx              # shadcn Tabs component
+│       └── svgs/                 # Service logos (Node, Redis, etc.)
+├── lib/
+│   ├── connections.ts            # Core data collection logic
+│   └── utils.ts                  # Tailwind className utility
+├── next.config.ts                # Next.js configuration
+├── tailwind.config.ts            # Tailwind theme & plugins
+├── tsconfig.json                 # TypeScript compiler options
+└── package.json                  # Dependencies & scripts
+```
+
+## Next.js Configuration
+
+The Next.js configuration is minimal, optimized for development experience:
+
+```typescript next.config.ts
+import type { NextConfig } from "next";
+import path from "path";
+
+const nextConfig: NextConfig = {
+  devIndicators: false,
+  outputFileTracingRoot: path.join(__dirname),
+};
+
+export default nextConfig;
+```
+
+- **devIndicators**: Disabled for cleaner UI during development
+- **outputFileTracingRoot**: Ensures proper file tracing for standalone builds
+
+## TypeScript Configuration
+
+psys uses strict TypeScript with ES2017 target:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "strict": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "paths": { "@/*": ["./*"] }
+  }
+}
+```
+
+Path aliases use `@/*` for clean imports throughout the codebase.
+
+## Development Scripts
+
+```bash
+# Development with Turbopack
+npm run dev
+
+# Production build
+npm run build
+
+# Start production server
+npm start
+
+# Start production server in background (port 30999)
+npm run start:bg
+
+# Lint code
+npm run lint
+```
+
+<Info>
+  The `start:bg` script runs the app on port **30999** in the background using `nohup`, perfect for long-running monitoring.
+</Info>
+
+## Platform Requirements
+
+<Warning>
+  psys requires **Linux** with the `ss` command (from `iproute2`) and access to the `/proc` filesystem. It will not work on macOS or Windows.
+</Warning>
+
+Optional dependencies:
+- **Docker**: For container name detection and labeling
+- **Permissions**: To see all system processes, run with elevated privileges (not recommended for daily use)
+
+## Data Types
+
+The core data structures defined in `lib/connections.ts:5-33`:
+
+```typescript
+export type Listener = {
+  pid: number;
+  processName: string;
+  serviceLabel?: string;        // e.g., "6379 (typical: Redis)" or container name
+  containerName?: string;       // Docker container name if applicable
+  processIconType?: string;     // Icon type: node, redis, postgres, etc.
+  address: string;
+  addressDescription?: string;  // Human-readable address description
+  port: number;
+  cmd?: string;                 // Process command from /proc/{pid}/cmdline
+};
+
+export type Connection = {
+  fromPid: number;
+  fromProcessName: string;
+  fromAddress: string;
+  fromPort: number;
+  toAddress: string;
+  toPort: number;
+  toLabel?: string;             // Target service label (e.g., "MongoDB")
+};
+
+export type ConnectionsData = {
+  listeners: Listener[];
+  connections: Connection[];
+};
+```
+
+## Rendering Strategy
+
+- **Client-side rendering**: The main dashboard is a client component (`"use client"`) for real-time updates
+- **Dynamic API routes**: All API routes use `export const dynamic = "force-dynamic"` to prevent caching
+- **Polling**: The frontend polls `/api/connections` every 5 seconds for fresh data
+- **React Flow**: Nodes and edges are computed client-side from the connections data

@@ -1,0 +1,199 @@
+---
+title: 'Shell Aliases'
+description: 'Set up convenient shell aliases for quick psys startup'
+---
+
+Shell aliases let you start psys with a single command from anywhere in your terminal.
+
+## Quick Setup
+
+Create a `psys` alias to start the application in background mode with one command.
+
+<Steps>
+  <Step title="Build the application">
+    Run the build command at least once:
+    
+    ```bash
+    cd /path/to/psys
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Add alias to shell configuration">
+    Open your shell configuration file and add the alias.
+    
+    <CodeGroup>
+    ```bash Zsh (~/.zshrc)
+    alias psys='cd /path/to/psys && npm run start:bg'
+    ```
+    
+    ```bash Bash (~/.bashrc)
+    alias psys='cd /path/to/psys && npm run start:bg'
+    ```
+    </CodeGroup>
+    
+    <Note>
+      Replace `/path/to/psys` with the actual absolute path to your psys project directory.
+    </Note>
+  </Step>
+
+  <Step title="Reload shell configuration">
+    Apply the changes by reloading your shell configuration:
+    
+    <CodeGroup>
+    ```bash Zsh
+    source ~/.zshrc
+    ```
+    
+    ```bash Bash
+    source ~/.bashrc
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Run the alias">
+    Now you can start psys from anywhere:
+    
+    ```bash
+    psys
+    ```
+    
+    The app starts in the background on port 30999.
+  </Step>
+</Steps>
+
+## Shell Configuration Files
+
+Choose the correct configuration file based on your shell:
+
+| Shell | Configuration File | How to Check |
+|-------|-------------------|-------------|
+| **Zsh** | `~/.zshrc` | `echo $SHELL` returns `/bin/zsh` or `/usr/bin/zsh` |
+| **Bash** | `~/.bashrc` | `echo $SHELL` returns `/bin/bash` or `/usr/bin/bash` |
+
+<Tip>
+  Not sure which shell you're using? Run `echo $SHELL` in your terminal.
+</Tip>
+
+## Example: Finding Your Project Path
+
+To get the absolute path for the alias:
+
+<Steps>
+  <Step title="Navigate to the project">
+    ```bash
+    cd ~/projects/psys
+    ```
+  </Step>
+
+  <Step title="Get the full path">
+    ```bash
+    pwd
+    ```
+    
+    Output example: `/home/username/projects/psys`
+  </Step>
+
+  <Step title="Use in alias">
+    ```bash
+    alias psys='cd /home/username/projects/psys && npm run start:bg'
+    ```
+  </Step>
+</Steps>
+
+## Advanced Aliases
+
+You can create additional aliases for different operations:
+
+```bash
+# Start psys in background
+alias psys='cd /path/to/psys && npm run start:bg'
+
+# Stop psys
+alias psys-stop='pkill -f "next start -p 30999"'
+
+# Rebuild and restart psys
+alias psys-rebuild='cd /path/to/psys && npm run build && npm run start:bg'
+
+# Open psys in browser
+alias psys-open='open http://localhost:30999'
+```
+
+<Note>
+  The `open` command works on macOS. On Linux, use `xdg-open` instead.
+</Note>
+
+## Verifying the Alias
+
+After setting up your alias:
+
+<Steps>
+  <Step title="Check the alias definition">
+    ```bash
+    alias psys
+    ```
+    
+    This displays the alias definition to verify it's correct.
+  </Step>
+
+  <Step title="Test the alias">
+    ```bash
+    psys
+    ```
+    
+    The application should start in the background.
+  </Step>
+
+  <Step title="Verify it's running">
+    Open [http://localhost:30999](http://localhost:30999) or check with:
+    
+    ```bash
+    ps aux | grep "next start"
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Alias not found after adding to config file">
+    Make sure you reloaded the shell configuration:
+    
+    ```bash
+    source ~/.zshrc  # or ~/.bashrc
+    ```
+    
+    Or open a new terminal window.
+  </Accordion>
+
+  <Accordion title="Command not found: npm">
+    Ensure Node.js and npm are installed and in your PATH:
+    
+    ```bash
+    which npm
+    node --version
+    npm --version
+    ```
+  </Accordion>
+
+  <Accordion title="Build not found when running alias">
+    Run the build command first:
+    
+    ```bash
+    cd /path/to/psys
+    npm run build
+    ```
+    
+    The production build must exist before using `npm run start:bg`.
+  </Accordion>
+
+  <Accordion title="Port 30999 already in use">
+    Another instance might be running. Stop it first:
+    
+    ```bash
+    pkill -f "next start -p 30999"
+    ```
+    
+    Or use `lsof -ti:30999 | xargs kill` to kill the process using that port.
+  </Accordion>
+</AccordionGroup>

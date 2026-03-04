@@ -1,0 +1,120 @@
+---
+title: 'Production Setup'
+description: 'Run psys as a background process in production'
+---
+
+For production environments, psys can run as a background process with no terminal output, making it ideal for continuous monitoring.
+
+## Background Process Mode
+
+The `start:bg` script runs psys as a detached background process that continues running even after closing your terminal.
+
+<Steps>
+  <Step title="Build the production bundle">
+    Build the application at least once before starting in background mode:
+    
+    ```bash
+    npm run build
+    ```
+    
+    This creates an optimized production build using `next build`.
+  </Step>
+
+  <Step title="Start the background server">
+    ```bash
+    npm run start:bg
+    ```
+    
+    This runs the command:
+    ```bash
+    nohup next start -p 30999 > /dev/null 2>&1 &
+    ```
+  </Step>
+
+  <Step title="Access the application">
+    Open [http://localhost:30999](http://localhost:30999) in your browser.
+    
+    The app continues running in the background on port **30999**.
+  </Step>
+</Steps>
+
+## Background Script Breakdown
+
+The `start:bg` script uses several techniques to run as a background process:
+
+```bash
+nohup next start -p 30999 > /dev/null 2>&1 &
+```
+
+| Component | Purpose |
+|-----------|----------|
+| `nohup` | Prevents the process from being terminated when the terminal closes |
+| `next start` | Starts the Next.js production server |
+| `-p 30999` | Runs on port 30999 instead of the default 3000 |
+| `> /dev/null` | Redirects standard output to null (no terminal output) |
+| `2>&1` | Redirects standard error to standard output (also suppressed) |
+| `&` | Runs the command in the background |
+
+<Note>
+  With this configuration, the server produces **no terminal output**. To monitor the application, access it through the web interface or check system logs.
+</Note>
+
+## When to Use Each Mode
+
+<CardGroup cols={2}>
+  <Card title="Development Mode" icon="code">
+    Use `npm run dev` when:
+    - Developing new features
+    - Testing changes with hot reload
+    - Debugging issues
+    - Need detailed error messages
+  </Card>
+
+  <Card title="Production Mode" icon="play">
+    Use `npm start` when:
+    - Running in production
+    - Need optimized performance
+    - Want to test production build locally
+    - Terminal needs to stay open
+  </Card>
+
+  <Card title="Background Mode" icon="server">
+    Use `npm run start:bg` when:
+    - Running continuously in production
+    - Want to close the terminal
+    - Need a dedicated monitoring port
+    - Running as a system service
+  </Card>
+
+  <Card title="Never Use" icon="xmark">
+    Don't use `npm run dev` in production:
+    - Slower performance
+    - Larger memory footprint
+    - Security implications
+    - Not optimized for production workloads
+  </Card>
+</CardGroup>
+
+## Stopping the Background Process
+
+To stop a background process started with `npm run start:bg`:
+
+<Steps>
+  <Step title="Find the process ID">
+    ```bash
+    ps aux | grep "next start"
+    ```
+  </Step>
+
+  <Step title="Kill the process">
+    ```bash
+    kill <PID>
+    ```
+    
+    Replace `<PID>` with the process ID from the previous step.
+  </Step>
+</Steps>
+
+<Tip>
+  For easier process management, consider setting up a [shell alias](/config/shell-aliases) to start and stop psys with simple commands.
+</Tip>
